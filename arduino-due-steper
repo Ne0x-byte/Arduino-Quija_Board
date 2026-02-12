@@ -1,0 +1,96 @@
+#include <AccelStepper.h>
+
+// ================================
+// Motores 28BYJ-48 con ULN2003
+// ================================
+
+// Motor 1
+AccelStepper motor1(
+  AccelStepper::FULL4WIRE,
+  A8, A10, A9, A11
+);
+
+// Motor 2
+AccelStepper motor2(
+  AccelStepper::FULL4WIRE,
+  A4, A6, A5, A7
+);
+
+// 45 grados ≈ 256 pasos
+const int PASOS_45 = 256;
+
+String buffer = "";
+
+// ================================
+void setup() {
+  Serial.begin(115200);
+  Serial2.begin(9600);
+
+  randomSeed(analogRead(A0));
+
+  motor1.setMaxSpeed(600);
+  motor1.setAcceleration(400);
+
+  motor2.setMaxSpeed(600);
+  motor2.setAcceleration(400);
+
+  Serial.println("DUE listo");
+}
+
+// ================================
+void loop() {
+  // --- UART desde ESP32 ---
+  while (Serial2.available()) {
+    char c = Serial2.read();
+
+    if (c == '\n') {
+      buffer.trim();
+      Serial.print("Evento: ");
+      Serial.println(buffer);
+
+      if (buffer == "TIKFINITY_EVENT") {
+        accionarMotores();
+      }
+
+      buffer = "";
+    } else {
+      buffer += c;
+    }
+  }
+
+  // Mantener motores activos
+  motor1.run();
+  motor2.run();
+}
+
+// ================================
+// ACCIÓN PRINCIPAL
+// ================================
+void accionarMotores() {
+  Serial.println("👉 GIRANDO MOTORES");
+
+  int direccion = random(0, 2) == 0 ? -1 : 1;
+  int pasos = direccion * PASOS_45;
+
+  motor1.moveTo(pasos);
+  motor2.moveTo(pasos);
+
+  // Esperar a que ambos terminen
+  while (motor1.distanceToGo() != 0 || motor2.distanceToGo() != 0) {
+    motor1.run();
+    motor2.run();
+  }
+
+  delay(300);
+
+  // Regresar a cero
+  motor1.moveTo(0);
+  motor2.moveTo(0);
+
+  while (motor1.distanceToGo() != 0 || motor2.distanceToGo() != 0) {
+    motor1.run();
+    motor2.run();
+  }
+
+  Serial.println("✔ Movimiento completado");
+}
