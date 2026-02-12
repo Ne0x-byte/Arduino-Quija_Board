@@ -1,0 +1,79 @@
+#include <WiFi.h>
+
+#define RXD2 16
+#define TXD2 17
+
+const char* ssid = "Puthere_your_ssid";
+const char* password = "wifi_password";
+
+WiFiServer server(4567);
+
+void setup() {
+  Serial.begin(115200);
+  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);
+
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando WiFi");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nESP32 conectado");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+
+  server.begin();
+  Serial.println("Servidor HTTP listo en puerto 4567");
+}
+
+void loop() {
+  WiFiClient client = server.available();
+  if (!client) return;
+
+  // Esperar datos
+  while (!client.available()) {
+    delay(1);
+  }
+
+  // Leer request line
+  String requestLine = client.readStringUntil('\r');
+  client.readStringUntil('\n');
+
+  Serial.println("=== WEBHOOK ===");
+  Serial.println(requestLine);
+
+  // Leer y descartar headers
+  while (client.available()) {
+    String line = client.readStringUntil('\n');
+    if (line == "\r") break;
+  }
+
+  // ---- Parse básico ----
+  bool esPOST = requestLine.startsWith("POST");
+  bool rutaOK = requestLine.indexOf("/tikfinity") > 0 || requestLine.indexOf(" / ") > 0;
+
+  if (esPOST && rutaOK) {
+    Serial.println("Evento Tikfinity válido");
+
+    // 👉 ENVÍO AL ARDUINO DUE
+    Serial2.println("TIKFINITY_EVENT");
+
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/plain");
+    client.println("Connection: close");
+    client.println();
+    client.println("OK");
+  } else {
+    Serial.println("Petición ignorada");
+
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/plain");
+    client.println();
+    client.println("IGNORED");
+  }
+
+  delay(5);
+  client.stop();
+}
