@@ -21,6 +21,10 @@ const int PASOS_45 = 256;
 
 String buffer = "";
 
+bool motorEnMovimiento = false;
+bool regresando = false;
+unsigned long pausaInicio = 0;
+
 // ================================
 void setup() {
   Serial.begin(115200);
@@ -28,28 +32,27 @@ void setup() {
 
   randomSeed(analogRead(A0));
 
-  motor1.setMaxSpeed(600);
-  motor1.setAcceleration(400);
+  motor1.setMaxSpeed(30);
+  motor1.setAcceleration(10);
 
-  motor2.setMaxSpeed(600);
-  motor2.setAcceleration(400);
+  motor2.setMaxSpeed(14);
+  motor2.setAcceleration(10);
 
-  Serial.println("DUE listo");
+  Serial.println("DUE listo - Solo Steppers");
 }
 
 // ================================
 void loop() {
-  // --- UART desde ESP32 ---
+
+  // -------- UART --------
   while (Serial2.available()) {
     char c = Serial2.read();
 
     if (c == '\n') {
       buffer.trim();
-      Serial.print("Evento: ");
-      Serial.println(buffer);
 
-      if (buffer == "TIKFINITY_EVENT") {
-        accionarMotores();
+      if (buffer == "TIKFINITY_EVENT" && !motorEnMovimiento) {
+        iniciarMovimiento();
       }
 
       buffer = "";
@@ -58,16 +61,19 @@ void loop() {
     }
   }
 
-  // Mantener motores activos
+  // -------- Motores --------
   motor1.run();
   motor2.run();
+
+  if (motorEnMovimiento) {
+    controlarMovimiento();
+  }
 }
 
 // ================================
-// ACCIÓN PRINCIPAL
+// INICIAR MOVIMIENTO
 // ================================
-void accionarMotores() {
-  Serial.println("👉 GIRANDO MOTORES");
+void iniciarMovimiento() {
 
   int direccion = random(0, 2) == 0 ? -1 : 1;
   int pasos = direccion * PASOS_45;
@@ -75,22 +81,39 @@ void accionarMotores() {
   motor1.moveTo(pasos);
   motor2.moveTo(pasos);
 
-  // Esperar a que ambos terminen
-  while (motor1.distanceToGo() != 0 || motor2.distanceToGo() != 0) {
-    motor1.run();
-    motor2.run();
+  motorEnMovimiento = true;
+  regresando = false;
+}
+
+// ================================
+// CONTROLAR STEPPERS
+// ================================
+void controlarMovimiento() {
+
+  // Cuando llegan al primer destino
+  if (!regresando &&
+      motor1.distanceToGo() == 0 &&
+      motor2.distanceToGo() == 0) {
+
+    pausaInicio = millis();
+    regresando = true;
   }
 
-  delay(300);
+  // Después de pequeña pausa regresan
+  if (regresando &&
+      millis() - pausaInicio > 300) {
 
-  // Regresar a cero
-  motor1.moveTo(0);
-  motor2.moveTo(0);
+    motor1.moveTo(0);
+    motor2.moveTo(0);
 
-  while (motor1.distanceToGo() != 0 || motor2.distanceToGo() != 0) {
-    motor1.run();
-    motor2.run();
+    regresando = false;
   }
 
-  Serial.println("✔ Movimiento completado");
+  // Cuando regresan completamente
+  if (!regresando &&
+      motor1.distanceToGo() == 0 &&
+      motor2.distanceToGo() == 0) {
+
+    motorEnMovimiento = false;
+  }
 }
