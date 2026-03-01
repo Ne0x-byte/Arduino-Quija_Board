@@ -1,0 +1,14 @@
+<VirtualHost *:80>
+    ServerName IP.ngrok-free.app
+
+    ProxyRequests Off
+    ProxyPreserveHost On
+
+    <Proxy *>
+        Require all granted
+    </Proxy>
+
+    ProxyPass / http://192.168.1.20:4567/
+    ProxyPassReverse / http://192.168.1.20:4567/
+</VirtualHost>
+
