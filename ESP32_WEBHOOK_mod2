@@ -1,0 +1,69 @@
+#include <WiFi.h>
+#include <WebServer.h>
+
+const char* ssid = "SSID";
+const char* password = "YOUR_PASSWORD";
+
+// Configuración IP fija
+IPAddress local_IP(192, 168, 1, 20);
+IPAddress gateway(192, 168, 1, 1);     // Cambia si tu router es distinto
+IPAddress subnet(255, 255, 255, 0);
+IPAddress primaryDNS(8, 8, 8, 8);
+IPAddress secondaryDNS(8, 8, 4, 4);
+
+WebServer server(4567);
+
+// ================== HANDLER WEBHOOK ==================
+void handleWebhook() {
+
+  Serial.println("\n===== WEBHOOK RECIBIDO =====");
+
+  
+
+  String username = server.arg("username");
+  String gift = server.arg("giftName");
+  int coins = server.arg("coins").toInt();
+
+  Serial.println("Evento recibido:");
+  Serial.println("Usuario: " + username);
+  Serial.println("Regalo: " + gift);
+  Serial.println("Monedas: " + String(coins));
+
+  server.send(200, "application/json", "{\"status\":\"ok\"}");
+}
+
+// =====================================================
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(2, OUTPUT);
+
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
+    Serial.println("Error configurando IP fija");
+  }
+
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando a WiFi");
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nConectado!");
+  Serial.print("IP asignada: ");
+  Serial.println(WiFi.localIP());
+
+  // Acepta cualquier método en /webhook
+  server.on("/webhook", HTTP_ANY, handleWebhook);
+
+  // También acepta raíz por seguridad
+  server.on("/", HTTP_ANY, handleWebhook);
+
+  server.begin();
+  Serial.println("Servidor iniciado en puerto 4567");
+}
+
+void loop() {
+  server.handleClient();
+}
